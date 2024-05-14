@@ -160,7 +160,41 @@ class SE3Control(object):
         return control_input
     
 
-    def control_allocation_slidyquad(F_x, F_y, F_z, T_x, T_y, T_z):
+    def C_matrix_force(self,rotor_pos):
+    
+        Torque_body_matrix = np.zeros((3,3))
+
+        r1_x, r1_y, r1_z = rotor_pos['r1']
+        r2_x, r2_y, r2_z = rotor_pos['r2']
+        r3_x, r3_y, r3_z = rotor_pos['r3']
+        r4_x, r4_y, r4_z = rotor_pos['r4']
+
+
+        R_hat_1 = np.array([[0, -r1_z, r1_y], [r1_z, 0, -r1_x], [-r1_y, r1_x, 0]])
+        print("R hat 1 shape", R_hat_1.shape)
+        print("Rhat matrix", R_hat_1)
+
+        R_hat_2 = np.array([[0, -r2_z, r2_y], [r2_z, 0, -r2_x], [-r2_y, r2_x, 0]])
+
+        R_hat_3 = np.array([[0, -r3_z, r3_y], [r3_z, 0, -r3_x], [-r3_y, r3_x, 0]])
+
+        R_hat_4 = np.array([[0, -r4_z, r4_y], [r4_z, 0, -r4_x], [-r4_y, r4_x, 0]])
+
+
+        C_matrix_top_half = np.tile(np.eye(3), (1, 4))
+        C_matrix_bottom_half_raw = np.array(
+            [[R_hat_1 - Torque_body_matrix], [R_hat_2 + Torque_body_matrix], [R_hat_3 - Torque_body_matrix],
+            [R_hat_4 + Torque_body_matrix]])
+        C_matrix_collapsed = C_matrix_bottom_half_raw.reshape(4, 3, 3)
+        C_matrix_bottom_half = np.hstack(C_matrix_collapsed)
+
+        C = np.vstack((C_matrix_top_half, C_matrix_bottom_half))
+
+        return C
+
+    
+
+    def control_allocation_slidyquad(self,F_x, F_y, F_z, T_x, T_y, T_z):
         
 
         # Define variables
@@ -189,19 +223,6 @@ class SE3Control(object):
 
         print("F shape", F_all.shape)
 
-    #### this would be taken care by the high level controller #################
-        # F_x = 0
-        # F_y = 0
-        # F_z = 1
-        # T_x = 0
-        # T_y = 0
-        # # T_z = (F_z * coefficient_matrix_A[5][0]) / (coefficient_matrix_A[2][0])
-        # T_z = .01
-
-    #####################################################################################
-        print("T_z", T_z)
-        print(coefficient_matrix_A[5][0])
-        print(coefficient_matrix_A[2][0])
 
         # desired_T_F = cp.Parameter(6, value = np.array([F_x, F_y, F_z, T_x, T_y, T_z]))
 
@@ -209,11 +230,12 @@ class SE3Control(object):
 
         print("desired T_f ", desired_T_F.shape)
 
-        C_matrix = np.array([[1, 0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,1,0,0,1,0],[0,0,1,0,0,1,0,0,1,0,0,1],
-                                [0.26916547, - 0.6259074,   0.15,        0.26916547, - 0.7159074 ,  0.15, 0.26916547, - 0.7159074 ,- 0.15 ,  0.26916547, - 0.7159074 ,- 0.15],
-                                [0.28172339, - 0.62176047, - 0.2, 0.37172339, - 0.62176047, 0.2, 0.37172339, - 0.62176047, 0.2 ,0.37172339, - 0.62176047, 0.2],
-        [-0.09090219,  0.06477175, - 0.03553641, - 0.09090219, - 0.33522825, - 0.03553641, 0.20909781, - 0.33522825, - 0.03553641,  0.20909781, - 0.33522825, - 0.03553641]])
+        # C_matrix = np.array([[1, 0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,1,0,0,1,0],[0,0,1,0,0,1,0,0,1,0,0,1],
+        #                         [0.26916547, - 0.6259074,   0.15,        0.26916547, - 0.7159074 ,  0.15, 0.26916547, - 0.7159074 ,- 0.15 ,  0.26916547, - 0.7159074 ,- 0.15],
+        #                         [0.28172339, - 0.62176047, - 0.2, 0.37172339, - 0.62176047, 0.2, 0.37172339, - 0.62176047, 0.2 ,0.37172339, - 0.62176047, 0.2],
+        # [-0.09090219,  0.06477175, - 0.03553641, - 0.09090219, - 0.33522825, - 0.03553641, 0.20909781, - 0.33522825, - 0.03553641,  0.20909781, - 0.33522825, - 0.03553641]])
 
+        C_matrix = self.C_matrix_force(self.rotor_pos)
 
         C = cp.Parameter((6, 12), value=C_matrix)
 
@@ -401,6 +423,10 @@ class SE3Control(object):
         T_x = u2[0]
         T_y = u2[1]
         T_z = u2[2]
+
+        """
+        control slidy - Returns a dictionary of force values in all three direction for 4 rotors
+        """
         control_slidy = self.control_allocation_slidyquad(F_x, F_y, F_z, T_x, T_y, T_z)
 
 
