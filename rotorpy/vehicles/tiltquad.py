@@ -246,10 +246,7 @@ class TiltQuad(object):
             D = np.zeros(3,)
 
         # Compute the moments due to the rotor thrusts, rotor drag (if applicable), and rotor drag torques
-        # M_force = -np.einsum('ijk, ik->j', TiltQuad.hat_map(self.rotor_geometry), rotor_thrusts.T)
-        M_force = np.zeros(3,)
-        for i in range(self.num_rotors):
-            M_force += TiltQuad.hat_map(self.rotor_geometry[i, :])@rotor_thrusts[i, :]
+        M_force = -np.einsum('ijk, ik->j', TiltQuad.hat_map(self.rotor_geometry), rotor_thrusts.T)
         M_yaw = self.rotor_dir*(np.array([0, 0, self.k_m/self.k_eta])[:, np.newaxis]*np.linalg.norm(rotor_thrusts, axis=1))
 
         # Sum all elements to compute the total body wrench
