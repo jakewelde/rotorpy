@@ -457,4 +457,4 @@ class SE3Control(object):
                          'cmd_w':cmd_w,
                          'cmd_v':cmd_v}
         
-        return control_input, control_slidy
+        return control_input
