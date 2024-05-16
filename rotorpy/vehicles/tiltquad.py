@@ -130,15 +130,13 @@ class TiltQuad(object):
         Integrate dynamics forward from state given constant cmd_rotor_speeds for time t_step.
         """
 
-        cmd_rotor_speeds = self.get_cmd_motor_speeds(state, control)
-
-        # The true motor speeds can not fall below min and max speeds.
-        cmd_rotor_speeds = np.clip(cmd_rotor_speeds, self.rotor_speed_min, self.rotor_speed_max) 
+        # TODO: Add appropriate thrust clipping here
+        cmd_rotor_thrusts = control['cmd_motor_thrusts']
 
         # Form autonomous ODE for constant inputs and integrate one time step.
         def s_dot_fn(t, s):
-            return self._s_dot_fn(t, s, cmd_rotor_speeds)
-        s = TiltQuad._pack_state(state)
+            return self._s_dot_fn(t, s, cmd_rotor_thrusts)
+        s = self._pack_state(state)
         
         s_dot = s_dot_fn(0, s)
         v_dot = s_dot[3:6]
@@ -153,12 +151,13 @@ class TiltQuad(object):
         Integrate dynamics forward from state given constant control for time t_step.
         """
 
+        # TODO: Add appropriate thrust clipping here
         cmd_rotor_thrusts = control['cmd_motor_thrusts']
 
         # Form autonomous ODE for constant inputs and integrate one time step.
         def s_dot_fn(t, s):
             return self._s_dot_fn(t, s, cmd_rotor_thrusts)
-        s = TiltQuad._pack_state(state)
+        s = self._pack_state(state)
 
         # Option 1 - RK45 integration
         sol = scipy.integrate.solve_ivp(s_dot_fn, (0, t_step), s, first_step=t_step)
@@ -166,7 +165,7 @@ class TiltQuad(object):
         # Option 2 - Euler integration
         # s = s + s_dot_fn(0, s) * t_step  # first argument doesn't matter. It's time invariant model
 
-        state = TiltQuad._unpack_state(s)
+        state = self._unpack_state(s)
 
         # Re-normalize unit quaternion.
         state['q'] = state['q'] / norm(state['q'])
@@ -177,11 +176,15 @@ class TiltQuad(object):
         """
         Compute derivative of state for quadrotor given fixed control inputs as
         an autonomous ODE.
+        Inputs:
+            t := current time
+            s := the current state (in packed form)
+            cmd_rotor_thrusts := the commanded rotor thrust VECTORS, in the shape (Nrotors, 3)
         """
 
-        state = TiltQuad._unpack_state(s)
+        state = self._unpack_state(s)
 
-        rotor_thrusts = state['rotor_thrusts']
+        rotor_thrusts = state['rotor_thrusts']  # Remember this are thrust vectors in the shape (Nrotors, 3) 
         inertial_velocity = state['v']
         wind_velocity = state['wind']
         rotor_thrusts = state['rotor_thrusts']
@@ -247,6 +250,8 @@ class TiltQuad(object):
 
         # Compute the moments due to the rotor thrusts, rotor drag (if applicable), and rotor drag torques
         M_force = -np.einsum('ijk, ik->j', TiltQuad.hat_map(self.rotor_geometry), rotor_thrusts.T)
+
+        # Drag torque is assumed to be linear in the NORM of the thrust vector.
         M_yaw = self.rotor_dir*(np.array([0, 0, self.k_m/self.k_eta])[:, np.newaxis]*np.linalg.norm(rotor_thrusts, axis=1))
 
         # Sum all elements to compute the total body wrench
@@ -254,6 +259,33 @@ class TiltQuad(object):
         MtotB = M_force + np.sum(M_yaw, axis=1)
 
         return (FtotB, MtotB)
+
+    def _unpack_state(self, s):
+        """
+        Convert Quadrotor's private internal vector representation to a state dict.
+        x = inertial position
+        v = inertial velocity
+        q = orientation
+        w = body rates
+        wind = wind vector
+        rotor_speeds = rotor speeds
+        """
+        state = {'x':s[0:3], 'v':s[3:6], 'q':s[6:10], 'w':s[10:13], 'wind':s[13:16], 'rotor_thrusts':s[16:].reshape(4,3)}
+        return state
+        
+    def _pack_state(self, state):
+        """
+        Convert a state dict to Quadrotor's private internal vector representation.
+        """
+        s = np.zeros((16+12,))   # FIXME: this shouldn't be hardcoded. Should vary with the number of rotors. 
+        s[0:3]   = state['x']       # inertial position
+        s[3:6]   = state['v']       # inertial velocity
+        s[6:10]  = state['q']       # orientation
+        s[10:13] = state['w']       # body rates
+        s[13:16] = state['wind']    # wind vector
+        s[16:]   = state['rotor_thrusts'].ravel()     # rotor speeds
+
+        return s
 
     @classmethod
     def rotate_k(cls, q):
@@ -281,21 +313,6 @@ class TiltQuad(object):
                              [-s[1],  s[0],     0]])
 
     @classmethod
-    def _pack_state(cls, state):
-        """
-        Convert a state dict to Quadrotor's private internal vector representation.
-        """
-        s = np.zeros((16+12,))   # FIXME: this shouldn't be hardcoded. Should vary with the number of rotors. 
-        s[0:3]   = state['x']       # inertial position
-        s[3:6]   = state['v']       # inertial velocity
-        s[6:10]  = state['q']       # orientation
-        s[10:13] = state['w']       # body rates
-        s[13:16] = state['wind']    # wind vector
-        s[16:]   = state['rotor_thrusts'].ravel()     # rotor speeds
-
-        return s
-
-    @classmethod
     def _norm(cls, v):
         """
         Given a vector v in R^3, return the 2 norm (length) of the vector
@@ -303,19 +320,6 @@ class TiltQuad(object):
         norm = (v[0]**2 + v[1]**2 + v[2]**2)**0.5
         return norm
 
-    @classmethod
-    def _unpack_state(cls, s):
-        """
-        Convert Quadrotor's private internal vector representation to a state dict.
-        x = inertial position
-        v = inertial velocity
-        q = orientation
-        w = body rates
-        wind = wind vector
-        rotor_speeds = rotor speeds
-        """
-        state = {'x':s[0:3], 'v':s[3:6], 'q':s[6:10], 'w':s[10:13], 'wind':s[13:16], 'rotor_thrusts':s[16:].reshape(4,3)}
-        return state
 
 if __name__ == "__main__":
 
