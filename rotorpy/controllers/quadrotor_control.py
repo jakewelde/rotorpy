@@ -192,7 +192,9 @@ class SE3Control(object):
 
         return C
 
-    
+
+
+
 
     def control_allocation_slidyquad(self,F_x, F_y, F_z, T_x, T_y, T_z):
         
@@ -404,18 +406,6 @@ class SE3Control(object):
         # Compute command body rates by doing PD on the attitude error. 
         cmd_w = -self.kp_att*att_err - self.kd_att*w_err
 
-        # Compute motor speeds. Avoid taking square root of negative numbers.
-        TM = np.array([u1, u2[0], u2[1], u2[2]])
-        cmd_rotor_thrusts = self.TM_to_f @ TM
-        cmd_motor_speeds = cmd_rotor_thrusts / self.k_eta
-        cmd_motor_speeds = np.sign(cmd_motor_speeds) * np.sqrt(np.abs(cmd_motor_speeds))
-
-        # Assign controller commands.
-        cmd_thrust = u1                                             # Commanded thrust, in units N.
-        cmd_moment = u2                                             # Commanded moment, in units N-m.
-        cmd_q = Rotation.from_matrix(R_des).as_quat()               # Commanded attitude as a quaternion.
-        cmd_v = -self.kp_vel*pos_err + flat_output['x_dot']     # Commanded velocity in world frame (if using cmd_vel control abstraction), in units m/s
-
         # control allocation
         F_x = F_des[0]
         F_y = F_des[1]
@@ -428,6 +418,34 @@ class SE3Control(object):
         control slidy - Returns a dictionary of force values in all three direction for 4 rotors
         """
         control_slidy = self.control_allocation_slidyquad(F_x, F_y, F_z, T_x, T_y, T_z)
+
+        # Compute motor speeds. Avoid taking square root of negative numbers.
+        TM = np.array([u1, u2[0], u2[1], u2[2]])
+        # cmd_rotor_thrusts = self.TM_to_f @ TM
+
+        ############ control allocation force extraction #####################
+        # Extracting the values from the results string
+        lines = control_slidy.split('\n')
+        forces = []
+
+        for line in lines:
+            parts = line.split(',')
+            force_values = [float(part.split(':')[1].strip()) for part in parts]
+            forces.append(force_values)
+
+        # Convert the list of forces to a NumPy array
+        cmd_rotor_thrusts = np.array(forces)
+        
+        cmd_motor_speeds = cmd_rotor_thrusts / self.k_eta
+        cmd_motor_speeds = np.sign(cmd_motor_speeds) * np.sqrt(np.abs(cmd_motor_speeds))
+
+        # Assign controller commands.
+        cmd_thrust = u1                                             # Commanded thrust, in units N.
+        cmd_moment = u2                                             # Commanded moment, in units N-m.
+        cmd_q = Rotation.from_matrix(R_des).as_quat()               # Commanded attitude as a quaternion.
+        cmd_v = -self.kp_vel*pos_err + flat_output['x_dot']     # Commanded velocity in world frame (if using cmd_vel control abstraction), in units m/s
+
+
 
 
 
