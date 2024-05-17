@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
-import cvxpy as cp
 
 class SE3Control(object):
     """
@@ -159,174 +158,6 @@ class SE3Control(object):
                         'cmd_a':Alpha}
         return control_input
     
-
-    def C_matrix_force(self,rotor_pos):
-    
-        Torque_body_matrix = np.zeros((3,3))
-
-        r1_x, r1_y, r1_z = rotor_pos['r1']
-        r2_x, r2_y, r2_z = rotor_pos['r2']
-        r3_x, r3_y, r3_z = rotor_pos['r3']
-        r4_x, r4_y, r4_z = rotor_pos['r4']
-
-
-        R_hat_1 = np.array([[0, -r1_z, r1_y], [r1_z, 0, -r1_x], [-r1_y, r1_x, 0]])
-        print("R hat 1 shape", R_hat_1.shape)
-        print("Rhat matrix", R_hat_1)
-
-        R_hat_2 = np.array([[0, -r2_z, r2_y], [r2_z, 0, -r2_x], [-r2_y, r2_x, 0]])
-
-        R_hat_3 = np.array([[0, -r3_z, r3_y], [r3_z, 0, -r3_x], [-r3_y, r3_x, 0]])
-
-        R_hat_4 = np.array([[0, -r4_z, r4_y], [r4_z, 0, -r4_x], [-r4_y, r4_x, 0]])
-
-
-        C_matrix_top_half = np.tile(np.eye(3), (1, 4))
-        C_matrix_bottom_half_raw = np.array(
-            [[R_hat_1 - Torque_body_matrix], [R_hat_2 + Torque_body_matrix], [R_hat_3 - Torque_body_matrix],
-            [R_hat_4 + Torque_body_matrix]])
-        C_matrix_collapsed = C_matrix_bottom_half_raw.reshape(4, 3, 3)
-        C_matrix_bottom_half = np.hstack(C_matrix_collapsed)
-
-        C = np.vstack((C_matrix_top_half, C_matrix_bottom_half))
-
-        return C
-
-
-
-
-
-    def control_allocation_slidyquad(self,F_x, F_y, F_z, T_x, T_y, T_z):
-        
-
-        # Define variables
-        F1_x = cp.Variable()
-        F1_y = cp.Variable()
-        F1_z = cp.Variable()
-
-        F2_x = cp.Variable()
-        F2_y = cp.Variable()
-        F2_z = cp.Variable()
-
-        F3_x = cp.Variable()
-        F3_y = cp.Variable()
-        F3_z = cp.Variable()
-
-        F4_x = cp.Variable()
-        F4_y = cp.Variable()
-        F4_z = cp.Variable()
-
-        Fs = [[F1_x, F1_y, F1_z], [F2_x, F2_y, F2_z], [F3_x, F3_y, F3_z], [F4_x, F4_y, F4_z]]
-
-        # print("Fs", Fs[0])
-
-        F_all = cp.vstack([F1_x, F1_y, F1_z, F2_x, F2_y, F2_z, F3_x, F3_y, F3_z, F4_x, F4_y, F4_z])
-        # F = cp.Variable((12,1))
-
-        print("F shape", F_all.shape)
-
-
-        # desired_T_F = cp.Parameter(6, value = np.array([F_x, F_y, F_z, T_x, T_y, T_z]))
-
-        desired_T_F = np.array([[F_x], [F_y], [F_z], [T_x], [T_y], [T_z]])
-
-        print("desired T_f ", desired_T_F.shape)
-
-        # C_matrix = np.array([[1, 0,0,1,0,0,1,0,0,1,0,0],[0,1,0,0,1,0,0,1,0,0,1,0],[0,0,1,0,0,1,0,0,1,0,0,1],
-        #                         [0.26916547, - 0.6259074,   0.15,        0.26916547, - 0.7159074 ,  0.15, 0.26916547, - 0.7159074 ,- 0.15 ,  0.26916547, - 0.7159074 ,- 0.15],
-        #                         [0.28172339, - 0.62176047, - 0.2, 0.37172339, - 0.62176047, 0.2, 0.37172339, - 0.62176047, 0.2 ,0.37172339, - 0.62176047, 0.2],
-        # [-0.09090219,  0.06477175, - 0.03553641, - 0.09090219, - 0.33522825, - 0.03553641, 0.20909781, - 0.33522825, - 0.03553641,  0.20909781, - 0.33522825, - 0.03553641]])
-
-        C_matrix = self.C_matrix_force(self.rotor_pos)
-
-        C = cp.Parameter((6, 12), value=C_matrix)
-
-        print(C.value)
-        print(" c shape", C.shape)
-
-        # objective_new =
-        # Define the constraints
-        # constraints = [0.2173145989732144*x - 0.2560408941681052*y + 0.9419221972045823*z <= -1.6770471008442362]
-
-        # constraint_new = [C @ F_all == desired_T_F]
-
-        inequalities_sh = [[8.02533240e-01, - 5.91539818e-01, - 7.75953821e-02, - 0.00000000e+00],
-        [9.13555129e-01, 3.99244264e-01, - 7.75953821e-02, - 0.00000000e+00],
-        [-9.13555129e-01, - 3.99244264e-01, - 7.75953821e-02,  1.38777878e-17],
-        [-1.11021889e-01, - 9.90784082e-01, - 7.75953821e-02, - 0.00000000e+00],
-        [-8.02533240e-01, 5.91539818e-01, - 7.75953821e-02, - 0.00000000e+00],
-        [1.11021889e-01,  9.90784082e-01, - 7.75953821e-02, - 0.00000000e+00],
-        [1.40062414e-01, - 1.03238708e-01, 9.84745799e-01, - 8.35441668e-01],
-        [-1.59438550e-01, - 6.96782544e-02,  9.84745799e-01, - 8.35441668e-01],
-        [1.59438550e-01, 6.96782544e-02, 9.84745799e-01, - 8.35441668e-01],
-        [-1.93761367e-02, - 1.72916962e-01,  9.84745799e-01, - 8.35441668e-01],
-        [1.93761367e-02, 1.72916962e-01, 9.84745799e-01, - 8.35441668e-01],
-        [-1.40062414e-01,  1.03238708e-01,  9.84745799e-01, - 8.35441668e-01]]
-        constraint_new = []
-
-        for i, (a_new, b_new, c_new, d_new) in enumerate(inequalities_sh):
-            for F in Fs:
-                constraint_new.append(a_new * F[0] + b_new * F[1] + c_new * F[2] <= -d_new)
-
-        for constraint in constraint_new:
-            print(constraint)
-
-        print(len(constraint_new))
-        #
-        print(constraint_new)
-
-        # Define the objective function
-        # objective = cp.Minimize(x**2 + y**2 + z**2)
-        alpha = 1e5
-        effort_cost = alpha * ((F1_x ** 2 + F1_y ** 2) + (F2_x ** 2 + F2_y ** 2) + (F3_x ** 2 + F3_y ** 2) + (F4_x ** 2 + F4_y ** 2)) \
-                    + (F1_z ** 2 + F2_z ** 2 + F3_z ** 2 + F4_z ** 2)
-        # effort_cost = ((F1_x**2 + F1_y**2 + F1_z**2) + (F2_x**2 + F2_y**2 + F2_z**2) + (F3_x**2 + F3_y**2 + F3_z**2)+ (F4_x**2 + F4_y**2 + F4_z**2))
-        force_cost = cp.sum_squares(C @ F_all - desired_T_F)
-        # objective_new = cp.Minimize((0.5* cp.quad_form(F_all, np.eye(12))))
-
-        for epsilon in np.logspace(1, -10, num=10, endpoint=True):
-            total_cost = force_cost + (epsilon * effort_cost)
-
-            # objective_new = cp.Minimize(force_cost + (epsilon * effort_cost))
-
-            objective_new = cp.Minimize(total_cost)
-            problem_1 = cp.Problem(objective_new, constraint_new)
-            result = problem_1.solve(verbose=False)
-            status = problem_1.status
-
-            print("Solution for eps=", epsilon, "Status: ", status, "Effort cost:", effort_cost.value, "Force cost:",
-                force_cost.value)
-
-        # Print the results
-        # print(f"x = {x.value}")
-        # print(f"y = {y.value}")
-        # print(f"z = {z.value}")
-
-        # Output the optimized values of F
-
-        print("Optimized Forces:")
-        print(f"F1_x: {F1_x.value}, F1_y: {F1_y.value}, F1_z: {F1_z.value}")
-        print(f"F2_x: {F2_x.value}, F2_y: {F2_y.value}, F2_z: {F2_z.value}")
-        print(f"F3_x: {F3_x.value}, F3_y: {F3_y.value}, F3_z: {F3_z.value}")
-        print(f"F4_x: {F4_x.value}, F4_y: {F4_y.value}, F4_z: {F4_z.value}")
-
-        force_vector = np.array(
-            [F1_x.value, F1_y.value, F1_z.value, F2_x.value, F2_y.value, F2_z.value, F3_x.value, F3_y.value, F3_z.value,
-            F4_x.value, F4_y.value, F4_z.value])
-        print("force vector stacked", force_vector)
-        print("shape of forced vector", force_vector.shape)
-
-        resulting_value = C.value @ force_vector
-
-        print("forces", resulting_value)
-
-        results = (f"F1_x: {F1_x.value}, F1_y: {F1_y.value}, F1_z: {F1_z.value}\n"
-                f"F2_x: {F2_x.value}, F2_y: {F2_y.value}, F2_z: {F2_z.value}\n"
-                f"F3_x: {F3_x.value}, F3_y: {F3_y.value}, F3_z: {F3_z.value}\n"
-                f"F4_x: {F4_x.value}, F4_y: {F4_y.value}, F4_z: {F4_z.value}")
-
-        return results
-    
     def update(self, t, state, flat_output):
         """
         This function receives the current time, true state, and desired flat
@@ -406,36 +237,9 @@ class SE3Control(object):
         # Compute command body rates by doing PD on the attitude error. 
         cmd_w = -self.kp_att*att_err - self.kd_att*w_err
 
-        # control allocation
-        F_x = F_des[0]
-        F_y = F_des[1]
-        F_z = F_des[2]
-        T_x = u2[0]
-        T_y = u2[1]
-        T_z = u2[2]
-
-        """
-        control slidy - Returns a dictionary of force values in all three direction for 4 rotors
-        """
-        control_slidy = self.control_allocation_slidyquad(F_x, F_y, F_z, T_x, T_y, T_z)
-
         # Compute motor speeds. Avoid taking square root of negative numbers.
         TM = np.array([u1, u2[0], u2[1], u2[2]])
-        # cmd_rotor_thrusts = self.TM_to_f @ TM
-
-        ############ control allocation force extraction #####################
-        # Extracting the values from the results string
-        lines = control_slidy.split('\n')
-        forces = []
-
-        for line in lines:
-            parts = line.split(',')
-            force_values = [float(part.split(':')[1].strip()) for part in parts]
-            forces.append(force_values)
-
-        # Convert the list of forces to a NumPy array
-        cmd_rotor_thrusts = np.array(forces)
-        
+        cmd_rotor_thrusts = self.TM_to_f @ TM
         cmd_motor_speeds = cmd_rotor_thrusts / self.k_eta
         cmd_motor_speeds = np.sign(cmd_motor_speeds) * np.sqrt(np.abs(cmd_motor_speeds))
 
@@ -445,10 +249,6 @@ class SE3Control(object):
         cmd_q = Rotation.from_matrix(R_des).as_quat()               # Commanded attitude as a quaternion.
         cmd_v = -self.kp_vel*pos_err + flat_output['x_dot']     # Commanded velocity in world frame (if using cmd_vel control abstraction), in units m/s
 
-
-
-
-
         control_input = {'cmd_motor_speeds':cmd_motor_speeds,
                          'cmd_motor_thrusts':cmd_rotor_thrusts,
                          'cmd_thrust':cmd_thrust,
@@ -456,5 +256,4 @@ class SE3Control(object):
                          'cmd_q':cmd_q,
                          'cmd_w':cmd_w,
                          'cmd_v':cmd_v}
-        
         return control_input
