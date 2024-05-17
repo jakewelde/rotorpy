@@ -321,11 +321,13 @@ class Quadrotor():
 
     def __init__(self, ax,
         arm_length=0.125, rotor_radius=0.08, n_rotors=4,
-        shade=True, color=None, wind=True, wind_scale_factor=5):
+        shade=True, color=None, wind=True, thrust_vector=False, wind_scale_factor=5, thrust_vec_scale_factor=1):
 
         self.ax = ax
         self.wind_bool = wind
         self.wind_scale_factor = wind_scale_factor
+        self.thrust_vector_bool = thrust_vector
+        self.thrust_vec_scale_factor = thrust_vec_scale_factor
 
         # Apply same color to all rotor objects.
         if color is None:
@@ -349,11 +351,13 @@ class Quadrotor():
         if self.wind_bool:
             self.wind_vector = [self.ax.quiver(0,0,0,0,0,0, color='k')]
             artists.append(self.wind_vector)
+        if self.thrust_vector_bool:
+            self.thrust_vectors = [self.ax.quiver(0,0,0,0,0,0, color='g') for i in range(len(self.rotors))]
         self.artists = tuple(itertools.chain.from_iterable(artists))
                              
         self.transform(np.zeros((3,)), np.identity(3), np.zeros((3,)))
 
-    def transform(self, position, rotation, wind=np.array([1,0,0])):
+    def transform(self, position, rotation, wind=np.array([1,0,0]), thrust_vectors=np.zeros((4,3))):
         position.shape = (3,1)
         wind.shape = (3,1)
         for (r, pos) in zip(self.rotors, self.rotor_position.T):
@@ -362,7 +366,12 @@ class Quadrotor():
         if self.wind_bool:
             self.wind_vector[0].remove()
             self.wind_vector = [self.ax.quiver(position[0], position[1], position[2], wind[0]/self.wind_scale_factor, wind[1]/self.wind_scale_factor, wind[2]/self.wind_scale_factor, color='r', linewidth=1.5)]
-
+        if self.thrust_vector_bool:
+            for i, tv in enumerate(self.thrust_vectors):
+                tv.remove()
+                thrust_vector = np.matmul(rotation, thrust_vectors[i, :])
+                self.thrust_vectors[i] = self.ax.quiver(position[0] + self.rotor_position.T[i][0], position[1] + self.rotor_position.T[i][1], position[2] + self.rotor_position.T[i][2], thrust_vector[0], thrust_vector[1], thrust_vector[2], color='g', linewidth=1.5)
+            
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
