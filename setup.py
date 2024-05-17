@@ -12,6 +12,7 @@ setup(
     version='1.1.0',
     install_requires=[
             'cvxopt',
+            'cvxpy',
             'matplotlib',
             'filterpy == 1.4.5',
             'numpy',
