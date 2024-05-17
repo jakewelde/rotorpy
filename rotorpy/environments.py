@@ -98,7 +98,9 @@ class Environment():
                     animate_bool    = False,    # Boolean: determines if the animation of vehicle state will play. 
                     animate_wind    = False,    # Boolean: determines if the animation will include a wind vector.
                     verbose         = False,    # Boolean: will print statistics regarding the simulation. 
-                    fname   = None      # Filename is specified if you want to save the animation. Default location is the home directory. 
+                    fname   = None,      # Filename is specified if you want to save the animation. Default location is the home directory. 
+                    custom_plotter = None,  # Optional plotter class that works for your specific vehicle. 
+                    custom_logger = None # Optional logger class to save data to csv
                     ):
 
         """
@@ -110,6 +112,7 @@ class Environment():
         self.t_final = t_final
         self.terminate = terminate
         self.use_mocap = use_mocap
+        self.logger = custom_logger
 
         start_time = clk.time()
         (time, state, control, flat, imu_measurements, imu_gt, mocap_measurements, state_estimate, exit) = simulate(self.world,
@@ -135,7 +138,10 @@ class Environment():
 
         self.result = dict(time=time, state=state, control=control, flat=flat, imu_measurements=imu_measurements, imu_gt=imu_gt, mocap_measurements=mocap_measurements, state_estimate=state_estimate, exit=exit)
 
-        visualizer = Plotter(self.result, self.world)
+        if custom_plotter is None:  # Default is to use quadrotor's plotter.
+            visualizer = Plotter(self.result, self.world)
+        else:
+            visualizer = custom_plotter(self.result, self.world)
         if animate_bool:
             # Do animation here
             visualizer.animate_results(fname=fname, animate_wind=animate_wind)
@@ -159,7 +165,10 @@ class Environment():
             if not ".csv" in fname:
                 fname = fname + ".csv"
             path = os.path.join(os.path.dirname(__file__),'data_out',fname)
-            dataframe = unpack_sim_data(self.result)
+            if self.logger is None:
+                dataframe = unpack_sim_data(self.result)
+            else:
+                dataframe = self.logger(self.result)
             dataframe.to_csv(path)
 
 
