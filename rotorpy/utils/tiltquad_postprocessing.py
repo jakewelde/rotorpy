@@ -18,7 +18,9 @@ def unpack_tiltquad_sim_data(result):
             'ax', 'ay', 'az', 'ax_gt', 'ay_gt', 'az_gt', 'gx', 'gy', 'gz',                                                                                                  # IMU measurements
             'mocap_x', 'mocap_y', 'mocap_z', 'mocap_xdot', 'mocap_ydot', 'mocap_zdot', 'mocap_qx', 'mocap_qy', 'mocap_qz', 'mocap_qw', 'mocap_wx', 'mocap_wy', 'mocap_wz',  # Mocap measurements
             'T1xdes', 'T1ydes', 'T1zdes', 'T2xdes', 'T2ydes', 'T2zdes', 'T3xdes', 'T3ydes', 'T3zdes', 'T4xdes', 'T4ydes', 'T4zdes',
-            'thrustdes', 'qxdes', 'qydes', 'qzdes', 'qwdes', 'mxdes', 'mydes', 'mzdes',                                                 # Controller
+            # 'thrustdes',
+                'qxdes', 'qydes', 'qzdes', 'qwdes', 'mxdes', 'mydes', 'mzdes',                                                 # Controller
+            'Fxdes', 'Fydes', 'Fzdes'
     ]
 
     # Extract data into numpy arrays
@@ -62,6 +64,9 @@ def unpack_tiltquad_sim_data(result):
     filter_state = state_estimate['filter_state']
     covariance = state_estimate['covariance']
 
+    f_des = np.sum(cmd_rotor_thrust_vecs, axis=1)
+    print(f_des)
+
     if filter_state.shape[1] > 0:
         # Computes the standard deviation of the filter covariance diagonal elements
         sd = 3*np.sqrt(np.diagonal(covariance, axis1=1, axis2=2))
@@ -73,8 +78,8 @@ def unpack_tiltquad_sim_data(result):
                              x_des, v_des, a_des, j_des, s_des, yaw_des, yawdot_des, 
                              a_measured, a_actual, w_measured, 
                              x_mc, v_mc, q_mc, w_mc,
-                             cmd_rotor_thrust_vecs.reshape((cmd_rotor_thrust_vecs.shape[0], -1)), cmd_thrust, cmd_q, cmd_moment, 
-                             filter_state, sd))
+                             cmd_rotor_thrust_vecs.reshape((cmd_rotor_thrust_vecs.shape[0], -1)), cmd_q, cmd_moment,
+                             filter_state, sd, f_des))
     else:
         sd = []
 
@@ -83,7 +88,7 @@ def unpack_tiltquad_sim_data(result):
                             x_des, v_des, a_des, j_des, s_des, yaw_des, yawdot_des, 
                             a_measured, a_actual, w_measured, 
                             x_mc, v_mc, q_mc, w_mc,
-                            cmd_rotor_thrust_vecs.reshape((cmd_rotor_thrust_vecs.shape[0], -1)), cmd_thrust, cmd_q, cmd_moment))
+                            cmd_rotor_thrust_vecs.reshape((cmd_rotor_thrust_vecs.shape[0], -1)), cmd_q, cmd_moment, f_des))
     df = pd.DataFrame(data=dataset,
                         columns=headers)
     

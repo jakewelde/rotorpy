@@ -57,8 +57,8 @@ world = World.from_file(os.path.abspath(os.path.join(os.path.dirname(__file__),'
 # An instance of the simulator can be generated as follows: 
 sim_instance = Environment(vehicle=Multirotor(quad_params),           # vehicle object, must be specified. 
                            controller=SE3Control(quad_params),        # controller object, must be specified.
-                           trajectory=CircularTraj(radius=2),         # trajectory object, must be specified.
-                           wind_profile=SinusoidWind(),               # OPTIONAL: wind profile object, if none is supplied it will choose no wind. 
+                           trajectory=HoverTraj(),         # trajectory object, must be specified.
+                           wind_profile=NoWind(),               # OPTIONAL: wind profile object, if none is supplied it will choose no wind.
                            sim_rate     = 100,                        # OPTIONAL: The update frequency of the simulator in Hz. Default is 100 Hz.
                            imu          = None,                       # OPTIONAL: imu sensor object, if none is supplied it will choose a default IMU sensor.
                            mocap        = None,                       # OPTIONAL: mocap sensor object, if none is supplied it will choose a default mocap.  
@@ -77,12 +77,12 @@ Execution
 
 # Setting an initial state. This is optional, and the state representation depends on the vehicle used. 
 # Generally, vehicle objects should have an "initial_state" attribute. 
-x0 = {'x': np.array([0,0,0]),
-      'v': np.zeros(3,),
-      'q': np.array([0, 0, 0, 1]), # [i,j,k,w]
-      'w': np.zeros(3,),
-      'wind': np.array([0,0,0]),  # Since wind is handled elsewhere, this value is overwritten
-      'rotor_speeds': np.array([1788.53, 1788.53, 1788.53, 1788.53])}
+x0 = {'x': np.array([.1, 0, 0]),
+              'v': np.zeros(3, ),
+              'q': np.array([0, 0, 0, 1]),  # [i,j,k,w]
+              'w': np.zeros(3, ),
+              'wind': np.array([0, 0, 0]),  # Since wind is handled elsewhere, this value is overwritten
+              'rotor_speeds': np.array([1788.53, 1788.53, 1788.53, 1788.53])}
 sim_instance.vehicle.initial_state = x0
 
 # Executing the simulator as specified above is easy using the "run" method: 

@@ -57,7 +57,7 @@ class Multirotor(object):
                                             'wind': np.array([0,0,0]),  # Since wind is handled elsewhere, this value is overwritten
                                             'rotor_speeds': np.array([1788.53, 1788.53, 1788.53, 1788.53])},
                        control_abstraction='cmd_motor_speeds',
-                       aero = True,  
+                       aero = False,
                 ):
         """
         Initialize quadrotor physical parameters.
@@ -210,14 +210,14 @@ class Multirotor(object):
 
         state = Multirotor._unpack_state(s)
 
-        rotor_speeds = state['rotor_speeds']
+        # rotor_speeds = state['rotor_speeds']
         inertial_velocity = state['v']
         wind_velocity = state['wind']
 
         R = Rotation.from_quat(state['q']).as_matrix()
 
         # Rotor speed derivative
-        rotor_accel = (1/self.tau_m)*(cmd_rotor_speeds - rotor_speeds)
+        # rotor_accel = (1/self.tau_m)*(cmd_rotor_speeds - rotor_speeds)
 
         # Position derivative.
         x_dot = state['v']
@@ -229,7 +229,7 @@ class Multirotor(object):
         body_airspeed_vector = R.T@(inertial_velocity - wind_velocity)
 
         # Compute total wrench in the body frame based on the current rotor speeds and their location w.r.t. CoM
-        (FtotB, MtotB) = self.compute_body_wrench(state['w'], rotor_speeds, body_airspeed_vector)
+        (FtotB, MtotB) = self.compute_body_wrench(state['w'], cmd_rotor_speeds, body_airspeed_vector)
 
         # Rotate the force from the body frame to the inertial frame
         Ftot = R@FtotB
@@ -253,7 +253,7 @@ class Multirotor(object):
         s_dot[6:10]  = q_dot
         s_dot[10:13] = w_dot
         s_dot[13:16] = wind_dot
-        s_dot[16:]   = rotor_accel
+        # s_dot[16:]   = rotor_accel
 
         return s_dot
 
@@ -277,21 +277,24 @@ class Multirotor(object):
             # Parasitic drag force acting at the CoM
             D = -Multirotor._norm(body_airspeed_vector)*self.drag_matrix@body_airspeed_vector
             # Rotor drag (aka H force) acting at each propeller hub.
-            H = -rotor_speeds*(self.rotor_drag_matrix@local_airspeeds)
+            # H = -rotor_speeds*(self.rotor_drag_matrix@local_airspeeds)
             # Pitching flapping moment acting at each propeller hub.
-            M_flap = -self.k_flap*rotor_speeds*((Multirotor.hat_map(local_airspeeds.T).transpose(2, 0, 1))@np.array([0,0,1])).T
+            # M_flap = -self.k_flap*rotor_speeds*((Multirotor.hat_map(local_airspeeds.T).transpose(2, 0, 1))@np.array([0,0,1])).T
         else:
             D = np.zeros(3,)
-            H = np.zeros((3,self.num_rotors))
-            M_flap = np.zeros((3,self.num_rotors))
+            # H = np.zeros((3,self.num_rotors))
+            # M_flap = np.zeros((3,self.num_rotors))
 
         # Compute the moments due to the rotor thrusts, rotor drag (if applicable), and rotor drag torques
-        M_force = -np.einsum('ijk, ik->j', Multirotor.hat_map(self.rotor_geometry), T+H)
+        # M_force = -np.einsum('ijk, ik->j', Multirotor.hat_map(self.rotor_geometry), T+H)
+        M_force = -np.einsum('ijk, ik->j', Multirotor.hat_map(self.rotor_geometry), T)
         M_yaw = self.rotor_dir*(np.array([0, 0, self.k_m])[:, np.newaxis]*rotor_speeds**2)
 
         # Sum all elements to compute the total body wrench
-        FtotB = np.sum(T + H, axis=1) + D
-        MtotB = M_force + np.sum(M_yaw + M_flap, axis=1)
+        # FtotB = np.sum(T + H, axis=1) + D
+        FtotB = np.sum(T, axis=1) + D
+        # MtotB = M_force + np.sum(M_yaw + M_flap, axis=1)
+        MtotB = M_force + np.sum(M_yaw, axis=1)
 
         return (FtotB, MtotB)
 

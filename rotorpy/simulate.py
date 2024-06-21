@@ -4,18 +4,21 @@ import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.transform import Rotation
 
+
 class ExitStatus(Enum):
     """ Exit status values indicate the reason for simulation termination. """
-    COMPLETE     = 'Success: End reached.'
-    TIMEOUT      = 'Timeout: Simulation end time reached.'
-    INF_VALUE    = 'Failure: Your controller returned inf motor speeds.'
-    NAN_VALUE    = 'Failure: Your controller returned nan motor speeds.'
-    OVER_SPEED   = 'Failure: Your quadrotor is out of control; it is going faster than 100 m/s. The Guinness World Speed Record is 73 m/s.'
-    OVER_SPIN    = 'Failure: Your quadrotor is out of control; it is spinning faster than 100 rad/s. The onboard IMU can only measure up to 52 rad/s (3000 deg/s).'
-    FLY_AWAY     = 'Failure: Your quadrotor is out of control; it flew away with a position error greater than 20 meters.'
-    COLLISION    = 'Failure: Your quadrotor collided with an object.'
+    COMPLETE = 'Success: End reached.'
+    TIMEOUT = 'Timeout: Simulation end time reached.'
+    INF_VALUE = 'Failure: Your controller returned inf motor speeds.'
+    NAN_VALUE = 'Failure: Your controller returned nan motor speeds.'
+    OVER_SPEED = 'Failure: Your quadrotor is out of control; it is going faster than 100 m/s. The Guinness World Speed Record is 73 m/s.'
+    OVER_SPIN = 'Failure: Your quadrotor is out of control; it is spinning faster than 100 rad/s. The onboard IMU can only measure up to 52 rad/s (3000 deg/s).'
+    FLY_AWAY = 'Failure: Your quadrotor is out of control; it flew away with a position error greater than 20 meters.'
+    COLLISION = 'Failure: Your quadrotor collided with an object.'
 
-def simulate(world, initial_state, vehicle, controller, trajectory, wind_profile, imu, mocap, estimator, t_final, t_step, safety_margin, use_mocap, terminate=None):
+
+def simulate(world, initial_state, vehicle, controller, trajectory, wind_profile, imu, mocap, estimator, t_final,
+             t_step, safety_margin, use_mocap, terminate=None):
     """
     Perform a vehicle simulation and return the numerical results.
 
@@ -77,28 +80,29 @@ def simulate(world, initial_state, vehicle, controller, trajectory, wind_profile
     # Coerce entries of initial state into numpy arrays, if they are not already.
     initial_state = {k: np.array(v) for k, v in initial_state.items()}
 
-    if terminate is None:    # Default exit. Terminate at final position of trajectory.
-        normal_exit = traj_end_exit(initial_state, trajectory, using_vio = False)
-    elif terminate is False: # Never exit before timeout.
+    if terminate is None:  # Default exit. Terminate at final position of trajectory.
+        normal_exit = traj_end_exit(initial_state, trajectory, using_vio=False)
+    elif terminate is False:  # Never exit before timeout.
         normal_exit = lambda t, s: None
-    else:                    # Custom exit.
+    else:  # Custom exit.
         normal_exit = terminate
 
-    time    = [0]
-    state   = [copy.deepcopy(initial_state)]
-    state[0]['wind'] = wind_profile.update(0, state[0]['x'])   # TODO: move this line elsewhere so that other objects that don't have wind as a state can work here. 
+    time = [0]
+    state = [copy.deepcopy(initial_state)]
+    state[0]['wind'] = wind_profile.update(0, state[0][
+        'x'])  # TODO: move this line elsewhere so that other objects that don't have wind as a state can work here.
     imu_measurements = []
     mocap_measurements = []
     imu_gt = []
     state_estimate = []
-    flat    = [sanitize_trajectory_dic(trajectory.update(time[-1]))]
+    flat = [sanitize_trajectory_dic(trajectory.update(time[-1]))]
     mocap_measurements.append(mocap.measurement(state[-1], with_noise=True, with_artifacts=False))
     if use_mocap:
         # In this case the controller will use the motion capture estimate of the pose and twist for control. 
         control = [sanitize_control_dic(controller.update(time[-1], mocap_measurements[-1], flat[-1]))]
     else:
         control = [sanitize_control_dic(controller.update(time[-1], state[-1], flat[-1]))]
-    state_dot =  vehicle.statedot(state[0], control[0], t_step)
+    state_dot = vehicle.statedot(state[0], control[0], t_step)
     imu_measurements.append(imu.measurement(state[-1], state_dot, with_noise=True))
     imu_gt.append(imu.measurement(state[-1], state_dot, with_noise=False))
     state_estimate.append(estimator.step(state[0], control[0], imu_measurements[0], mocap_measurements[0]))
@@ -125,16 +129,17 @@ def simulate(world, initial_state, vehicle, controller, trajectory, wind_profile
         imu_measurements.append(imu.measurement(state[-1], state_dot, with_noise=True))
         imu_gt.append(imu.measurement(state[-1], state_dot, with_noise=False))
 
-    time    = np.array(time, dtype=float)    
-    state   = merge_dicts(state)
+    time = np.array(time, dtype=float)
+    state = merge_dicts(state)
     imu_measurements = merge_dicts(imu_measurements)
     imu_gt = merge_dicts(imu_gt)
     mocap_measurements = merge_dicts(mocap_measurements)
-    control         = merge_dicts(control)
-    flat            = merge_dicts(flat)
-    state_estimate  = merge_dicts(state_estimate)
+    control = merge_dicts(control)
+    flat = merge_dicts(flat)
+    state_estimate = merge_dicts(state_estimate)
 
     return (time, state, control, flat, imu_measurements, imu_gt, mocap_measurements, state_estimate, exit_status)
+
 
 def merge_dicts(dicts_in):
     """
@@ -152,7 +157,7 @@ def merge_dicts(dicts_in):
     return dict_out
 
 
-def traj_end_exit(initial_state, trajectory, using_vio = False):
+def traj_end_exit(initial_state, trajectory, using_vio=False):
     """
     Returns a exit function. The exit function returns an exit status message if
     the quadrotor is near hover at the end of the provided trajectory. If the
@@ -162,7 +167,7 @@ def traj_end_exit(initial_state, trajectory, using_vio = False):
 
     xf = trajectory.update(np.inf)['x']
     yawf = trajectory.update(np.inf)['yaw']
-    rotf = Rotation.from_rotvec(yawf * np.array([0, 0, 1])) # create rotation object that describes yaw
+    rotf = Rotation.from_rotvec(yawf * np.array([0, 0, 1]))  # create rotation object that describes yaw
     if np.array_equal(initial_state['x'], xf):
         min_time = 1.0
     else:
@@ -170,8 +175,8 @@ def traj_end_exit(initial_state, trajectory, using_vio = False):
 
     def exit_fn(time, state):
         cur_attitude = Rotation.from_quat(state['q'])
-        err_attitude = rotf * cur_attitude.inv() # Rotation between current and final
-        angle = norm(err_attitude.as_rotvec()) # angle in radians from vertical
+        err_attitude = rotf * cur_attitude.inv()  # Rotation between current and final
+        angle = norm(err_attitude.as_rotvec())  # angle in radians from vertical
         # Success is reaching near-zero speed with near-zero position error.
         if using_vio:
             # set larger threshold for VIO due to noisy measurements
@@ -181,7 +186,9 @@ def traj_end_exit(initial_state, trajectory, using_vio = False):
             if time >= min_time and norm(state['x'] - xf) < 0.02 and norm(state['v']) <= 0.03 and angle <= 0.02:
                 return ExitStatus.COMPLETE
         return None
+
     return exit_fn
+
 
 def time_exit(time, t_final):
     """
@@ -190,6 +197,7 @@ def time_exit(time, t_final):
     if time >= t_final:
         return ExitStatus.TIMEOUT
     return None
+
 
 def safety_exit(world, margin, state, flat, control):
     """
@@ -214,6 +222,7 @@ def safety_exit(world, margin, state, flat, control):
             return ExitStatus.COLLISION
     return None
 
+
 def sanitize_control_dic(control_dic):
     """
     Return a sanitized version of the control dictionary where all of the elements are np arrays
@@ -222,6 +231,7 @@ def sanitize_control_dic(control_dic):
     control_dic['cmd_moment'] = np.asarray(control_dic['cmd_moment'], np.float64).ravel()
     control_dic['cmd_q'] = np.asarray(control_dic['cmd_q'], np.float64).ravel()
     return control_dic
+
 
 def sanitize_trajectory_dic(trajectory_dic):
     """
